@@ -131,3 +131,4 @@ dmypy.json
 deploy/id_rsa
 *.retry
 *.key
+.idea/
