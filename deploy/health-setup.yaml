@@ -1,0 +1,10 @@
+- name: Setup health check
+  hosts: all
+  remote_user: sol
+  tasks:
+    - name: install python dependencies
+      pip:
+        chdir: ~/sol/sol
+        virtualenv: env
+        virtualenv_python: python3.6
+        requirements: "{{ requirements | default('requirements.txt') }}"

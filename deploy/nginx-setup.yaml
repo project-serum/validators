@@ -1,0 +1,27 @@
+- name: Setup nginx
+  hosts: all
+  remote_user: ubuntu
+  become: yes
+  tasks:
+    - name: linking enabled sites
+      file:
+        src: /etc/nginx/sites-available/{{ item }}
+        dest: /etc/nginx/sites-enabled/{{ item }}
+        state: link
+      with_items: "{{ nginx_sites }}"
+      notify: reload nginx
+
+    - find: file_type=link paths=/etc/nginx/sites-enabled
+      register: sites
+
+    - name: cleaning up others
+      with_items: "{{ sites.files | map(attribute='path') | list }}"
+      file: path={{ item }} state=absent
+      when: "(item | basename) not in nginx_sites"
+      notify: reload nginx
+
+  handlers:
+    - name: reload nginx
+      service:
+        name: nginx
+        state: reloaded

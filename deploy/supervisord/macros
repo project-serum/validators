@@ -1,0 +1,18 @@
+{% macro program(name, module) %}
+
+[program:{{ name }}]
+environment=PS={{ name }},TZ=UTC
+directory=/home/{{ validator_user }}/{{ validator_user }}
+startsecs=3
+stopwaitsecs=30
+user={{ validator_user }}
+stopasgroup=true
+startretries=100000
+autorestart=true
+redirect_stderr=true
+stdout_logfile_maxbytes=2000000000
+stdout_logfile_backups=3
+{% for key, value in kwargs.items() %}
+{{ key }}={{ value }}
+{% endfor %}
+{% endmacro %}
