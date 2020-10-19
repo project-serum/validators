@@ -1,0 +1,28 @@
+all:
+  vars:
+    validator_user: sol
+    solana_version: v1.2.32
+    run_validator: true
+    nginx_sites:
+      - validator.conf
+
+load_balancers:
+  hosts:
+    validator-lb.test.net:
+      extra_packages:
+        - nginx
+  vars:
+    is_watchtower: true
+    etc_dir: lb
+    run_validator: false
+
+validators:
+  hosts:
+    validator-1.test.net:
+    validator-2.test.net:
+  vars:
+    etc_dir: validator
+    supervisord_conf_file: validator.conf
+    local_disk: /dev/nvme0n1
+    extra_packages:
+      - nginx

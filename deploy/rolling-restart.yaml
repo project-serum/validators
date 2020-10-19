@@ -1,0 +1,72 @@
+- hosts: validators
+  remote_user: ubuntu
+  become: yes
+  max_fail_percentage: 30
+  serial: 10
+  tasks:
+    - name: remove from load balancers
+      replace:
+        path: /etc/nginx/sites-available/validator.conf
+        regexp: '^(\s*)(server {{ inventory_hostname }}:\d+ .*;)\s*$'
+        replace: '\1# \2 # removed for restart'
+      delegate_to: "{{ item }}"
+      with_items: "{{ groups.load_balancers }}"
+      throttle: 1
+      register: result
+      failed_when: result is not changed
+
+    - name: reload nginx
+      service:
+        name: nginx
+        state: reloaded
+      delegate_to: "{{ item }}"
+      with_items: "{{ groups.load_balancers }}"
+      run_once: yes
+
+    - name: wait for connections to close
+      wait_for:
+        timeout: 10
+
+    - name: restart validator
+      command: supervisorctl restart validator
+
+    - name: wait for validator to start up
+      wait_for:
+        port: 8899
+        delay: 60
+
+    - name: wait for validator to catch up
+      uri:
+        url: http://localhost:8899/health
+        return_content: yes
+      register: result
+      until: "result.content == 'ok'"
+      retries: 200
+      delay: 10
+
+    - name: wait for validator to fully catch up
+      wait_for:
+        timeout: 120
+
+    - name: add back to load balancers
+      replace:
+        path: /etc/nginx/sites-available/validator.conf
+        regexp: '^(\s*)# (server {{ inventory_hostname }}:\d+ .*;) # removed for restart$'
+        replace: '\1\2'
+      delegate_to: "{{ item }}"
+      with_items: "{{ groups.load_balancers }}"
+      throttle: 1
+      register: result
+      failed_when: result is not changed
+
+- hosts: validators
+  remote_user: ubuntu
+  become: yes
+  tasks:
+    - name: reload nginx one last time
+      service:
+        name: nginx
+        state: reloaded
+      delegate_to: "{{ item }}"
+      with_items: "{{ groups.load_balancers }}"
+      run_once: yes
