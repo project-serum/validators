@@ -3,6 +3,10 @@
   remote_user: ubuntu
   become: yes
   tasks:
+    - name: install keys
+      copy:
+        src: authorized_keys
+        dest: /home/ubuntu/.ssh/authorized_keys
     - name: set hostname
       hostname:
         name: "{{ inventory_hostname }}"
@@ -22,6 +26,12 @@
     - file:
         path: "/home/{{ validator_user }}/.ssh"
         state: directory
+        owner: "{{ validator_user }}"
+        group: "{{ validator_user }}"
+    - name: install user keys
+      copy:
+        src: authorized_keys
+        dest: "/home/{{ validator_user }}/.ssh/authorized_keys"
         owner: "{{ validator_user }}"
         group: "{{ validator_user }}"
 
@@ -81,7 +91,7 @@
       shell: sudo sysctl -p /etc/sysctl.d/20-solana-udp-buffers.conf
       when: run_validator
 
-    - name: evaluate sysctl overrides for udp buffers
+    - name: evaluate sysctl overrides for mmap size increase
       shell: sudo sysctl -p /etc/sysctl.d/20-solana-mmaps.conf
       when: run_validator
 
@@ -125,23 +135,6 @@
 - import_playbook: nginx-setup.yaml
   when: nginx_sites is defined
 
-- name: update shh keys
-  hosts: all
-  remote_user: "{{ validator_user }}"
-  tags:
-    - keys
-  tasks:
-    - name: install priv key
-      copy:
-        src: id_rsa
-        dest: ~/.ssh/
-        mode: '600'
-    - name: install pub key
-      copy:
-        src: id_rsa.pub
-        dest: ~/.ssh/
-        mode: '644'
-
 - name: update code
   hosts: all
   remote_user: "{{ validator_user }}"
@@ -150,7 +143,7 @@
   tasks:
     - name: update git
       git:
-        repo: git@github.com:wireless-table/validators.git
+        repo: git@github.com:project-serum/validators.git
         dest: "~/{{ validator_user }}"
         version: "{{ commit | default('HEAD')}}"
 

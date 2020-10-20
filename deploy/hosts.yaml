@@ -8,9 +8,13 @@ all:
 
 load_balancers:
   hosts:
-    validator-lb.test.net:
+    validator-lb-standard.test.net:
       extra_packages:
         - nginx
+    validator-lb-health-checks.test.net:
+      nginx_sites:
+        - validator-health-checks.conf
+        - dashboard.conf
   vars:
     is_watchtower: true
     etc_dir: lb
@@ -23,6 +27,7 @@ validators:
   vars:
     etc_dir: validator
     supervisord_conf_file: validator.conf
-    local_disk: /dev/nvme0n1
+    # Uncomment below to specify a location other than the root device to store ledger data
+    # local_disk: /dev/nvme1n1
     extra_packages:
       - nginx
