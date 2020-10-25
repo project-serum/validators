@@ -1,0 +1,167 @@
+- name: set up system
+  hosts: all
+  remote_user: ubuntu
+  become: yes
+  tasks:
+    - name: install keys
+      copy:
+        src: authorized_keys
+        dest: /home/ubuntu/.ssh/authorized_keys
+    - name: set hostname
+      hostname:
+        name: "{{ inventory_hostname }}"
+    - name: add self to /etc/hosts
+      lineinfile:
+        dest: /etc/hosts
+        regexp: '^127\.0\.0\.1[ \t]+localhost'
+        line: '127.0.0.1 localhost {{ inventory_hostname }}'
+        state: present
+
+    - group:
+        name: "{{ validator_user }}"
+    - user:
+        name: "{{ validator_user }}"
+        group: "{{ validator_user }}"
+        shell: /bin/bash
+    - file:
+        path: "/home/{{ validator_user }}/.ssh"
+        state: directory
+        owner: "{{ validator_user }}"
+        group: "{{ validator_user }}"
+    - name: install user keys
+      copy:
+        src: authorized_keys
+        dest: "/home/{{ validator_user }}/.ssh/authorized_keys"
+        owner: "{{ validator_user }}"
+        group: "{{ validator_user }}"
+
+    - name: apt repos
+      apt_repository:
+        repo: ppa:deadsnakes/ppa  # For python 3.6
+    - name: update packages
+      apt:
+        update_cache: yes
+        upgrade: 'yes'
+    - name: install packages
+      apt:
+        update_cache: yes
+        name:
+          - cron
+          - graphviz
+          - iotop
+          - dnsmasq
+          - supervisor
+          - iputils-ping
+          - less
+          - lsof
+          - psmisc
+          - screen
+          - silversearcher-ag
+          - software-properties-common
+          - vim
+          - zstd
+
+          - python3.6
+          - virtualenv
+          - python3-virtualenv
+    - name: install extra packages  # Configured in hosts file
+      apt:
+        name: "{{ extra_packages }}"
+      when: extra_packages is defined
+
+    - name: create log directory
+      file:
+        path: /var/log/sol
+        state: directory
+        owner: "{{ validator_user }}"
+        group: "{{ validator_user }}"
+
+    - name: configure common /etc
+      copy:
+        src: etc/common/
+        dest: /etc/
+
+    - name: configure /etc overrides
+      when: etc_dir is defined
+      copy:
+        src: "etc/{{ etc_dir }}/"
+        dest: /etc/
+
+    - name: evaluate sysctl overrides for udp buffers
+      shell: sudo sysctl -p /etc/sysctl.d/20-solana-udp-buffers.conf
+      when: run_validator
+
+    - name: evaluate sysctl overrides for mmap size increase
+      shell: sudo sysctl -p /etc/sysctl.d/20-solana-mmaps.conf
+      when: run_validator
+
+    - name: configure supervisord
+      when: supervisord_conf_file is defined
+      template:
+        src: "supervisord/{{ supervisord_conf_file }}"
+        dest: /etc/supervisor/conf.d/sol.conf
+
+    - name: whitelist github ssh host
+      lineinfile:
+        regexp: "^github\\.com"
+        dest: /etc/ssh/ssh_known_hosts
+        create: yes
+        state: present
+        line: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ=="
+
+    - name: format local disk
+      filesystem:
+        dev: "{{ local_disk }}"
+        fstype: xfs
+      when: local_disk is defined
+
+    - name: mount local disk
+      mount:
+        path: /data
+        src: "{{ local_disk }}"
+        fstype: xfs
+        opts: defaults,nofail
+        state: mounted
+      when: local_disk is defined
+
+    - name: create sol directory on local disk
+      file:
+        path: /data/sol
+        state: directory
+        owner: "{{ validator_user }}"
+        group: "{{ validator_user }}"
+      when: local_disk is defined
+
+- import_playbook: nginx-setup.yaml
+  when: nginx_sites is defined
+
+- name: update code
+  hosts: all
+  remote_user: "{{ validator_user }}"
+  tags:
+    - code
+  tasks:
+    - name: update git
+      git:
+        repo: git@github.com:project-serum/validators.git
+        dest: "~/{{ validator_user }}"
+        version: "{{ commit | default('HEAD')}}"
+
+- import_playbook: health-setup.yaml
+
+- name: update cli
+  hosts: all
+  remote_user: ubuntu
+  become: yes
+  tags:
+    - cli
+  tasks:
+    - name: install cli
+      shell: sudo --login -u sol -- bash -c "curl -sSf  https://raw.githubusercontent.com/solana-labs/solana/{{ solana_version }}/install/solana-install-init.sh | sh -s {{ solana_version }}"
+
+- hosts: all
+  remote_user: ubuntu
+  become: yes
+  tasks:
+    - name: update supervisorctl
+      command: supervisorctl update

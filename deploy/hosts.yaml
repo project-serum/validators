@@ -1,0 +1,33 @@
+all:
+  vars:
+    validator_user: sol
+    solana_version: v1.2.32
+    run_validator: true
+    nginx_sites:
+      - validator.conf
+
+load_balancers:
+  hosts:
+    validator-lb-standard.test.net:
+      extra_packages:
+        - nginx
+    validator-lb-health-checks.test.net:
+      nginx_sites:
+        - validator-health-checks.conf
+        - dashboard.conf
+  vars:
+    is_watchtower: true
+    etc_dir: lb
+    run_validator: false
+
+validators:
+  hosts:
+    validator-1.test.net:
+    validator-2.test.net:
+  vars:
+    etc_dir: validator
+    supervisord_conf_file: validator.conf
+    # Uncomment below to specify a location other than the root device to store ledger data
+    # local_disk: /dev/nvme1n1
+    extra_packages:
+      - nginx
