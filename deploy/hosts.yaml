@@ -1,17 +1,17 @@
 all:
   vars:
     validator_user: sol
-    solana_version: v1.2.32
+    solana_version: v1.4.9
     run_validator: true
     nginx_sites:
       - validator.conf
 
 load_balancers:
   hosts:
-    validator-lb-standard.test.net:
+    validator-load-balancer-standard.test.net:
       extra_packages:
         - nginx
-    validator-lb-health-checks.test.net:
+    validator-load-balancer-health-checks.test.net:
       nginx_sites:
         - validator-health-checks.conf
         - dashboard.conf
@@ -27,7 +27,8 @@ validators:
   vars:
     etc_dir: validator
     supervisord_conf_file: validator.conf
-    # Uncomment below to specify a location other than the root device to store ledger data
+    # Uncomment below to specify a location other than the root device to store ledger data. One use case would be
+    # for a higher bandwidth drive than the root device, which may be a network drive.
     # local_disk: /dev/nvme1n1
     extra_packages:
       - nginx

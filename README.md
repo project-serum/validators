@@ -67,6 +67,7 @@ Among other things, the above command will modify your new instance by
 - installing code from this repository
 - installing the Solana CLI
 - increasing the file descriptor limit for processes managed by supervisor to 600000
+- creating a `tmpfs` device for the accounts store mounted at `/mnt/accounts`
 
 After running the `setup.yaml` script, a reboot is necessary to pick up various system configs. Post-reboot, supervisor 
 should start up the validator using the `sol/api.sh` script. The validator will be listening on port 8899 for rest 
@@ -77,6 +78,14 @@ $ curl http://localhost:8899
 
 This curl will likely return the status `behind`, as the validator is catching up with the existing cluster. Once the 
 validator has successfully caught up, it will be ready to serve RPC requests on port `8899`
+
+#### A note about the accounts store
+The accounts store is a portion of the Solana state model that requires high throughput access for validators to 
+function properly. One method for achieving higher throughput is by keeping the accounts store in memory rather than
+on disk. A straightforward way to do this is by using a `tmpfs` block device. For the uninitiated, `tmpfs` is a 
+temporary file storage system in Unix that emulates a filesystem, with the data actually being store in 
+memory. Keeping the accounts store in memory allow for quicker accesses, and significantly reduces latency for 
+expensive account operations.
 
 #### TL;DR
 - deploy a cloud instance with an NVIDIA GPU with CUDA enabled
