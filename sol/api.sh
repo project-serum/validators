@@ -44,6 +44,7 @@ args=(
   --dynamic-port-range 8002-8012
   --entrypoint "${ENTRYPOINT}"
   --ledger /data/sol/ledger
+  --accounts /mnt/accounts
   --identity "$identity_keypair"
   --enable-rpc-transaction-history
   --limit-ledger-size 50000000

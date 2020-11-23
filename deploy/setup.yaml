@@ -132,6 +132,18 @@
         group: "{{ validator_user }}"
       when: local_disk is defined
 
+    - name: create accounts tmpfs filesystem mount point
+      file:
+        path: /mnt/accounts
+        state: directory
+    - name: mount accounts tmpfs
+      mount:
+        path: /mnt/accounts
+        src: tmpfs
+        fstype: tmpfs
+        opts: size=20G
+        state: mounted
+
 - import_playbook: nginx-setup.yaml
   when: nginx_sites is defined
 
