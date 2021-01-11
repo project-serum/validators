@@ -8,12 +8,9 @@ PATH=/home/sol/.local/share/solana/install/active_release/bin:/usr/sbin:/usr/bin
 # Parameters from https://docs.solana.com/clusters#mainnet-beta
 ENTRYPOINT=mainnet-beta.solana.com:8001
 TRUSTED_VALIDATOR_PUBKEYS=(7Np41oeYqPefeNQEHSv1UDhYrehxin3NStELsSKCT4K2 GdnSyH3YtwcxFvQrVVJMm1JhTS4QVX7MFsX56uJLUfiZ DE1bawNcRJB9rVm3buyMVfr8mBEoyyu73NBovf2oXJsJ CakcnaRDHka2gXyfbEd2d3xsvkJkqsLw2akB3zsN1D2S)
-EXPECTED_BANK_HASH=5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d
+EXPECTED_BANK_HASH=Fi4p8z3AkfsuGXZzQ4TD28N8QDNSWC7ccqAqTs2GPdPu
 EXPECTED_GENESIS_HASH=5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d
-EXPECTED_SHRED_VERSION=64864
-
-# NOTE: Check if this is reasonable
-RPC_HEALTH_CHECK_SLOT_DISTANCE=15
+EXPECTED_SHRED_VERSION=13490
 
 # Delete any zero-length snapshots that can cause validator startup to fail
 find /data/sol/ledger/snapshot-* -size 0 -print -exec rm {} \; || true
@@ -48,6 +45,7 @@ args=(
   --identity "$identity_keypair"
   --enable-rpc-transaction-history
   --limit-ledger-size 50000000
+  --health-check-slot-distance 500
   --cuda
   --rpc-port 8899
   --private-rpc
@@ -60,10 +58,6 @@ args=(
   --log -
   --wal-recovery-mode skip_any_corrupted_record
 )
-
-if [[ -n "$RPC_HEALTH_CHECK_SLOT_DISTANCE" ]]; then
-  args+=(--health-check-slot-distance "$RPC_HEALTH_CHECK_SLOT_DISTANCE")
-fi
 
 # Note: can get into a bad state that requires actually fetching a new snapshot. One such error that indicates this:
 # "...processing for bank 0 must succeed: FailedToLoadEntries(InvalidShredData(Custom(\"could not reconstruct entries\")))"
