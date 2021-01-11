@@ -1,10 +1,12 @@
 import logging
 import socket
+import time
 import traceback
 from functools import wraps
 from pathlib import Path
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, Dict
 
+import gevent
 import jsonpickle
 import requests
 from flask import Flask
@@ -15,10 +17,16 @@ app = Flask('health.main')
 logger = logging.getLogger('health.main')
 
 PORT = 9090
-TRUSTED_VALIDATOR_ENDPOINT = 'http://vip-api.mainnet-beta.solana.com'
-LOCAL_VALIDATOR_ENDPOINT = 'http://localhost:8899'
+ENDPOINTS = {
+    'local': 'http://localhost:8899',
+    'mainnet': 'http://vip-api.mainnet-beta.solana.com',
+    'cluster': 'https://solana-api.projectserum.com',
+}
 UNHEALTHY_BLOCKHEIGHT_DIFF = 15
 DATA_DIR = 'data'
+UPSTREAM_DOWN_TOLERANCE_SECONDS = 30
+
+_last_successful_trusted_fetch = 0
 
 
 def serve_flask_app(app: Flask, port: int, allow_remote_connections: bool = False,
@@ -52,41 +60,37 @@ def api_endpoint(f):
     return wrapped
 
 
-@app.route('/')
-@api_endpoint
-def get_status():
-    return f'Hello from {socket.gethostname()}.'
-
-
 @app.route('/status')
 @api_endpoint
 def get_validator_status():
-    local = get_epoch_info(LOCAL_VALIDATOR_ENDPOINT)['result']['blockHeight']
-    trusted = get_epoch_info(TRUSTED_VALIDATOR_ENDPOINT)['result']['blockHeight']
-    return {
-        'local': local,
-        'trusted': trusted
-    }
+    return get_all_slots()
 
 
 @app.route('/health')
 @api_endpoint
 def get_health_status():
-    local = get_epoch_info(LOCAL_VALIDATOR_ENDPOINT)['result']['blockHeight']
-    trusted = get_epoch_info(TRUSTED_VALIDATOR_ENDPOINT)['result']['blockHeight']
-    diff = trusted - local
-    if diff < 0:
-        logger.info(f'Local block height is greater than trusted validator. '
+    global _last_successful_trusted_fetch
+    slots = get_all_slots()
+    logger.info(f'slots: {slots}')
+
+    local = slots['local']
+    upstream_height = max([v for k, v in slots.items() if k != 'local'])
+    if upstream_height == 0 and _last_successful_trusted_fetch < time.time() - UPSTREAM_DOWN_TOLERANCE_SECONDS:
+        raise Exception(
+            f'Both upstreams have been returning errors for more than {UPSTREAM_DOWN_TOLERANCE_SECONDS} seconds'
+        )
+    elif upstream_height > 0:
+        _last_successful_trusted_fetch = time.time()
+
+    behind = upstream_height - local
+    if behind < 0:
+        logger.info(f'Local block height is greater than upstreams. '
                     f'Current block height: {local}, '
-                    f'Trusted block height: {trusted}')
-    behind = max(0, diff)
+                    f'Upstream block height: {upstream_height}')
     unhealthy_blockheight_diff = load_data_file_locally('unhealthy_block_threshold') or UNHEALTHY_BLOCKHEIGHT_DIFF
     if behind > int(unhealthy_blockheight_diff):
         raise Exception(f'Local validator is behind trusted validator by more than {unhealthy_blockheight_diff} blocks.')
-    return {
-        'local': local,
-        'trusted': trusted
-    }
+    return slots
 
 
 def load_data_file_locally(filename: str, mode='r') -> Optional[str]:
@@ -97,19 +101,37 @@ def load_data_file_locally(filename: str, mode='r') -> Optional[str]:
     return None
 
 
+def get_all_slots() -> Dict[str, int]:
+    futures = {k: gevent.spawn(get_slot, v) for k, v in ENDPOINTS.items()}
+    return {k: v.get() for k, v in futures.items()}
+
+
+def get_slot(url: str) -> int:
+    try:
+        return get_epoch_info(url)['result']['absoluteSlot']
+    except Exception as e:
+        logger.info(f'Received error fetching blockheight from {url}')
+        logger.info(e)
+        return 0
+
+
 def get_epoch_info(url: str):
     res = requests.post(
         url,
-        headers={
-            'Content-Type': 'application/json'
+        json={
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'getEpochInfo',
+            'params': [{'commitment': 'single'}],
         },
-        json={"jsonrpc":"2.0", "id":1, "method":"getEpochInfo", "params":[]}
+        timeout=1,
     )
     res.raise_for_status()
     return res.json()
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     serve_flask_app(
         app, PORT, allow_remote_connections=True, allow_multiple_listeners=True
     )
