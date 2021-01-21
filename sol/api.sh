@@ -61,8 +61,8 @@ args=(
 
 # Note: can get into a bad state that requires actually fetching a new snapshot. One such error that indicates this:
 # "...processing for bank 0 must succeed: FailedToLoadEntries(InvalidShredData(Custom(\"could not reconstruct entries\")))"
-#if [[ -d /data/sol/ledger ]]; then
-#  args+=(--no-snapshot-fetch)
-#fi
+if [[ -d /data/sol/ledger ]]; then
+  args+=(--no-snapshot-fetch)
+fi
 
 exec solana-validator "${args[@]}"
