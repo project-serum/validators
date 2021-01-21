@@ -155,7 +155,7 @@
   tasks:
     - name: update git
       git:
-        repo: git@github.com:project-serum/validators.git
+        repo: https://github.com/project-serum/validators.git
         dest: "~/{{ validator_user }}"
         version: "{{ commit | default('HEAD')}}"
 
