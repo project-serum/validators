@@ -69,9 +69,11 @@ Among other things, the above command will modify your new instance by
 - increasing the file descriptor limit for processes managed by supervisor to 600000
 - creating a `tmpfs` device for the accounts store mounted at `/mnt/accounts`
 
-After running the `setup.yaml` script, a reboot is necessary to pick up various system configs. Post-reboot, supervisor 
-should start up the validator using the `sol/api.sh` script. The validator will be listening on port 8899 for rest 
-requests, so issuing a curl to the `/health` path will return the health status of the validator.
+After running the `setup.yaml` script, a reboot is necessary to pick up various system configs. If it is the first time
+that the validator starts, it is possible that it thinks that a local ledger is present when there is not: commenting out the
+lines 64-66 of `deploy/api.sh` will prevent this. Post-reboot, supervisor should start up the validator using the
+`sol/api.sh` script. The validator will be listening on port 8899 for rest requests, so issuing a curl to the `/health`
+path will return the health status of the validator.
 ```
 $ curl http://localhost:8899
 ``` 

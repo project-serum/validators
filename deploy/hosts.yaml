@@ -1,7 +1,7 @@
 all:
   vars:
     validator_user: sol
-    solana_version: v1.4.9
+    solana_version: v1.4.24
     run_validator: true
     nginx_sites:
       - validator.conf
